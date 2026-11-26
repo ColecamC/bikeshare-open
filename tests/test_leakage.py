@@ -61,6 +61,24 @@ def test_no_missing_values(feats):
     assert feats[feature_columns(feats)].isna().sum().sum() == 0
 
 
+def test_roll_28_is_mean_of_prior_28_days(feats):
+    """cnt_roll_28 on 2012-06-15 = mean of raw cnt on 2012-05-18..2012-06-14.
+
+    Availability: every input is from a day strictly before d, so it is known
+    at prediction time. The day's own count (7665) must not be in the window.
+    """
+    raw = load_raw().set_index("dteday")[TARGET]
+    d = pd.Timestamp("2012-06-15")
+    window = pd.date_range(d - pd.Timedelta(days=28), d - pd.Timedelta(days=1))
+    missing = [w.date() for w in window if w not in raw.index]
+    assert not missing, f"window days absent from raw data: {missing}"
+    expected = raw[window].mean()
+    assert expected == pytest.approx(6716.142857)  # hand-computed from raw CSV
+    assert "cnt_roll_28" in feats.columns, "cnt_roll_28 not built by build_features()"
+    actual = feats.set_index("dteday").loc[d, "cnt_roll_28"]
+    assert actual == pytest.approx(expected), f"cnt_roll_28[{d.date()}]={actual}"
+
+
 def test_dates_are_sorted_and_unique(feats):
     assert feats.dteday.is_monotonic_increasing
     assert feats.dteday.is_unique
