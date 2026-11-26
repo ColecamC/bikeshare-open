@@ -3,7 +3,8 @@ import pandas as pd
 import pytest
 from sklearn.metrics import r2_score
 
-from src.config import LAG_WARMUP, TARGET
+from src.config import (ENCODED_COLS, FORBIDDEN, LAG_WARMUP, RAW_FEATURE_COLS,
+                        TARGET, UNUSED_COLS)
 from src.features import build_features, feature_columns, reindex_to_calendar
 from src.ingest import load_raw
 from src.train import MODELS, temporal_split
@@ -56,3 +57,40 @@ def test_persistence_baseline_is_reported():
     """The baseline that matters for a lag-driven model is 'yesterday again'.
     It must be in the comparison, whatever its score."""
     assert "baseline_persistence" in MODELS
+
+
+CLASSIFIED = FORBIDDEN | RAW_FEATURE_COLS | ENCODED_COLS | UNUSED_COLS | {"dteday"}
+
+
+def unclassified(columns):
+    """Raw columns that src/config.py does not account for.
+
+    Checked against explicit sets, never against feature_columns():
+    feature_columns() admits any new numeric column, so a column that is
+    already in the feature set is not evidence that anyone classified it.
+    """
+    return sorted(set(columns) - CLASSIFIED)
+
+
+def test_every_raw_column_is_classified(raw):
+    """A new column in bike_daily.csv cannot enter the pipeline silently."""
+    missing = unclassified(raw.columns)
+    assert not missing, f"unclassified raw columns: {missing}"
+
+
+@pytest.mark.parametrize("make", [
+    lambda r: r.assign(new_col=1.0),          # new numeric column
+    lambda r: r.assign(new_label="x"),        # new text column
+    lambda r: r.rename(columns={"casual": "rider_mix"}),  # leak, renamed
+], ids=["numeric", "text", "renamed_leak"])
+def test_unclassified_catches_new_columns(raw, make):
+    """The guard must flag a column whatever its dtype or name."""
+    assert unclassified(make(raw).columns), "new column was not flagged"
+
+
+def test_classification_sets_are_disjoint():
+    """Each raw column has exactly one reason for being where it is."""
+    sets = [FORBIDDEN, RAW_FEATURE_COLS, ENCODED_COLS, UNUSED_COLS]
+    for i, a in enumerate(sets):
+        for b in sets[i + 1:]:
+            assert not (a & b), f"column classified twice: {sorted(a & b)}"
