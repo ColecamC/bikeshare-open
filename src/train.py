@@ -14,11 +14,13 @@ nothing worth reporting. The booster is there because it fails, and the
 reason it fails is the headline result.
 
 Run: python -m src.train
+Exercise 4 experiment (prints only): python -m src.train --target-diff
 """
 import json
+import sys
 
 import pandas as pd
-from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.base import BaseEstimator, RegressorMixin, clone
 from sklearn.dummy import DummyRegressor
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.linear_model import Ridge
@@ -86,7 +88,40 @@ def fit_and_score() -> dict:
     return results
 
 
+def fit_and_score_diff(include_test: bool = False) -> dict:
+    """Exercise 4: fit ridge and hgb on cnt - cnt_roll_28 instead of cnt.
+
+    A tree cannot predict above the largest target it saw, and 2012 demand
+    is above 2011's. The gap between today and the previous 28 days stays in
+    range as ridership grows, so the booster can follow the trend. The same
+    transform is applied to both models so the comparison stays fair.
+    cnt_roll_28 is already shifted, so it is known at prediction time.
+
+    Scores are on the cnt scale. Validation only, unless include_test is set
+    for the single final look. Never writes reports/metrics.json.
+    """
+    df = pd.read_parquet(PROCESSED)
+    cols = feature_columns(df)
+    train, valid, test = temporal_split(df)
+    parts = [("valid", valid)] + ([("test", test)] if include_test else [])
+    results = {}
+    for name in ("ridge", "hgb"):
+        model = clone(MODELS[name]).fit(train[cols], train[TARGET] - train["cnt_roll_28"])
+        results[f"{name}_diff"] = {}
+        for split, part in parts:
+            pred = model.predict(part[cols]) + part["cnt_roll_28"]
+            results[f"{name}_diff"][split] = {
+                "r2": round(float(r2_score(part[TARGET], pred)), 4),
+                "mae": round(float(mean_absolute_error(part[TARGET], pred)), 1),
+            }
+    return results
+
+
 if __name__ == "__main__":
+    if "--target-diff" in sys.argv:
+        # Experiment only: print, never overwrite the committed metrics.
+        print(json.dumps(fit_and_score_diff(include_test="--final" in sys.argv), indent=2))
+        sys.exit(0)
     res = fit_and_score()
     METRICS.parent.mkdir(parents=True, exist_ok=True)
     METRICS.write_text(json.dumps(res, indent=2))
