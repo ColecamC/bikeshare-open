@@ -82,3 +82,11 @@ def test_roll_28_is_mean_of_prior_28_days(feats):
 def test_dates_are_sorted_and_unique(feats):
     assert feats.dteday.is_monotonic_increasing
     assert feats.dteday.is_unique
+
+
+def test_encode_weather_rejects_unknown_label():
+    """encode_weather must raise on unmapped labels like STORMY."""
+    from src.features import encode_weather
+    series = pd.Series(["GOOD", "STORMY", "BAD"])
+    with pytest.raises(ValueError, match="STORMY"):
+        encode_weather(series)
