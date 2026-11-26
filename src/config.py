@@ -19,6 +19,10 @@ DATA_URL = (
     "https://raw.githubusercontent.com/christophM/"
     "interpretable-ml-book/master/data/bike.csv"
 )
+# sha256 of data/raw/bike_daily.csv as shipped. src/ingest.py and
+# tests/test_contract.py fail on any other bytes (see docs/SEEDED_FAULTS.md,
+# fault 4: a Bash write got past both the deny rules and the hook).
+RAW_SHA256 = "a6bed1577f6e4de56dcfae6d8315985073cc0ad3446c8c99ed60c86a0b5ad9dc"
 
 TARGET = "cnt"
 

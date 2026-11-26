@@ -2,12 +2,13 @@
 
 Run: python -m src.ingest
 """
+import hashlib
 import sys
 import urllib.request
 
 import pandas as pd
 
-from src.config import DATA_URL, RAW
+from src.config import DATA_URL, RAW, RAW_SHA256
 
 EXPECTED_MIN_ROWS = 700
 REQUIRED_COLS = {"dteday", "cnt", "casual", "registered", "temp", "hum", "windspeed"}
@@ -18,6 +19,26 @@ def download(force: bool = False) -> None:
         return
     RAW.parent.mkdir(parents=True, exist_ok=True)
     urllib.request.urlretrieve(DATA_URL, RAW)
+
+
+def raw_sha256() -> str:
+    return hashlib.sha256(RAW.read_bytes()).hexdigest()
+
+
+def verify_raw() -> None:
+    """Raw data is immutable: fail if its bytes differ from the pinned hash.
+
+    Permission rules bind the agent's Edit/Write tools and recognised shell
+    commands, and the PostToolUse hook only watches src/. Neither sees a
+    write made any other way. The hash sees every change, by anyone.
+    """
+    actual = raw_sha256()
+    if actual != RAW_SHA256:
+        raise SystemExit(
+            f"{RAW.name} has changed: sha256 {actual[:16]}..., "
+            f"expected {RAW_SHA256[:16]}.... Restore it with "
+            f"`git checkout -- data/raw/{RAW.name}`; never edit raw data."
+        )
 
 
 def load_raw() -> pd.DataFrame:
@@ -32,5 +53,6 @@ def load_raw() -> pd.DataFrame:
 
 if __name__ == "__main__":
     download(force="--force" in sys.argv)
+    verify_raw()
     df = load_raw()
     print(f"OK ingest: {len(df)} rows, {df.dteday.min().date()} -> {df.dteday.max().date()}")

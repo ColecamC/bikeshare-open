@@ -94,3 +94,13 @@ def test_classification_sets_are_disjoint():
     for i, a in enumerate(sets):
         for b in sets[i + 1:]:
             assert not (a & b), f"column classified twice: {sorted(a & b)}"
+
+
+def test_raw_file_is_unchanged():
+    """Raw data is immutable. Any change to its bytes -- an edit, a cp from
+    Bash, a re-download from a mirror that moved -- fails here and in make data."""
+    from src.config import RAW_SHA256
+    from src.ingest import raw_sha256
+    actual = raw_sha256()
+    assert actual == RAW_SHA256, (
+        f"data/raw/bike_daily.csv changed: sha256 {actual[:16]}..., expected {RAW_SHA256[:16]}...")
