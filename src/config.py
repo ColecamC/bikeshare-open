@@ -52,4 +52,6 @@ VALID_END = "2012-06-30"
 # Longest lag window in src/features.py. The first LAG_WARMUP calendar days
 # have no complete history and are dropped; tests/test_contract.py uses this
 # to bound how many rows may legitimately disappear.
-LAG_WARMUP = 7
+# cnt_roll_28 = shift(1).rolling(28): row i averages rows i-28..i-1, so the
+# first 28 rows (not 29) are NaN. Measured loss is 56 = 28 + 28 * 1 gap.
+LAG_WARMUP = 28
