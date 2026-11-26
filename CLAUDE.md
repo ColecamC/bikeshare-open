@@ -8,7 +8,10 @@ rides) from calendar, weather, and lagged-demand features.
 - `make features` - build `data/processed/features.parquet`
 - `make train` - fit models, write `reports/metrics.json`
 - `make test` - pytest; run this before claiming anything works
-- `make all` - the three pipeline stages in order
+- `make all` - the three pipeline stages in order; reproduces every number
+  in `reports/metrics.json` and the REPORT.md Results table
+- `python -m src.train --target-diff` - Exercise 4 experiment (target
+  `cnt - cnt_roll_28`), validation only; never writes `reports/metrics.json`
 
 ## Non-negotiable rules
 - **Never** put `casual` or `registered` in a feature set:
@@ -20,9 +23,21 @@ rides) from calendar, weather, and lagged-demand features.
 - Any new lag or rolling feature must be built on a gap-free calendar
   index (`src.features.reindex_to_calendar`) and must `.shift(1)` before
   it aggregates. Add a test for it in `tests/test_leakage.py`.
+- `LAG_WARMUP` must equal the longest window (28, for `cnt_roll_28`); the
+  row-loss test depends on it. Never use it as a window size.
+- **Never** change `data/raw/bike_daily.csv` by any means: no edit, copy,
+  or re-download. Its sha256 is pinned (`RAW_SHA256`); `make data` and
+  `make test` fail on any change. Fix data problems downstream, in code.
+- Every raw column must be classified in `src/config.py` (`FORBIDDEN`,
+  `RAW_FEATURE_COLS`, `ENCODED_COLS` or `UNUSED_COLS`). A new column fails
+  `tests/test_contract.py` until someone decides which it is.
 - Report the mean baseline **and** the persistence baseline (yesterday's
   count) alongside every model. A negative R^2 is a finding, not a bug
   to hide.
+
+## Skills
+- `/new-feature <idea>` - add a feature, test first, report validation delta
+- `/seed-fault <description>` - break one thing, record what catches it, restore
 
 ## Style
 - Standard library, pandas, scikit-learn only. No new dependencies
